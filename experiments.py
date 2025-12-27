@@ -173,7 +173,14 @@ def _run_single(
     return df
 
 
-def run_experiment(experiment: str, topology: str, init_mode: str, seed: int) -> None:
+def run_experiment(
+    experiment: str,
+    topology: str,
+    init_mode: str,
+    seed: int,
+    tmax: float,
+    max_events: int,
+) -> None:
     """
     Run a single experiment scenario specified by (experiment, topology, init_mode).
     Writes per-run CSV + plots, and appends summary stats to results/summary_statistics.csv.
@@ -183,14 +190,19 @@ def run_experiment(experiment: str, topology: str, init_mode: str, seed: int) ->
     _ensure_dir("results")
     _ensure_dir("plots")
 
+    # Limits (CLI-controlled)
+    T_max = float(tmax)
+    max_events = int(max_events)
+
+    if T_max <= 0.0:
+        raise ValueError(f"--tmax must be > 0; got {T_max}")
+    if max_events <= 0:
+        raise ValueError(f"--max-events must be > 0; got {max_events}")
+
     # Shared defaults
     if experiment in ("baseline", "intelligence"):
-        T_max = 200.0
-        max_events = 50_000
         N_max = 100_000
     elif experiment == "bb":
-        T_max = 1000.0
-        max_events = 100_000
         N_max = 200_000
     else:
         raise ValueError(f"Unknown experiment={experiment}")
@@ -303,11 +315,11 @@ def run_experiment(experiment: str, topology: str, init_mode: str, seed: int) ->
             init_mode=init_mode,
             seed=seed,
             vacua_and_T=(vacua_baseline, T2),
-            T_max=200.0,
-            max_events=50_000,
-            N_max=100_000,
+            T_max=T_max,
+            max_events=max_events,
+            N_max=N_max,
             log_interval_events=log_interval_events,
-            checkpoints=_make_checkpoints(200.0),
+            checkpoints=_make_checkpoints(T_max),
             n_initial=n_initial,
             initial_vacuum_id=initial_vacuum_id,
             include_bb_metrics=False,
@@ -376,14 +388,52 @@ def run_experiment(experiment: str, topology: str, init_mode: str, seed: int) ->
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Reproducing multiverse toy model experiments")
-    parser.add_argument("--experiment", choices=["baseline", "intelligence", "bb"], required=True)
-    parser.add_argument("--topology", choices=["smooth", "rugged", "cluster"], required=True)
-    parser.add_argument("--init", dest="init_mode", choices=["concentrated", "uniform"], required=True)
-    parser.add_argument("--seed", type=int, default=42)
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--experiment",
+        required=True,
+        choices=["baseline", "intelligence", "bb"],
+        help="Which experiment to run",
+    )
+
+    parser.add_argument(
+        "--topology",
+        required=True,
+        choices=["smooth", "rugged", "cluster"],
+        help="Vacuum landscape topology",
+    )
+
+    parser.add_argument(
+        "--init",
+        required=True,
+        choices=["concentrated", "uniform"],
+        help="Initial condition distribution",
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed",
+    )
+
+    parser.add_argument(
+        "--tmax",
+        type=float,
+        default=50.0,
+        help="Maximum simulation time",
+    )
+
+    parser.add_argument(
+        "--max-events",
+        type=int,
+        default=20000,
+        help="Maximum number of decay events",
+    )
 
     args = parser.parse_args()
-    run_experiment(args.experiment, args.topology, args.init_mode, args.seed)
+    run_experiment(args.experiment, args.topology, args.init, args.seed, args.tmax, args.max_events)
 
 
 if __name__ == "__main__":
