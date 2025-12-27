@@ -222,8 +222,12 @@ def run_experiment(
     # Validate supported topology per experiment
     if experiment == "baseline" and topology not in ("smooth", "rugged"):
         raise ValueError("baseline experiment supports only topologies: smooth, rugged")
-    if experiment in ("intelligence", "bb") and topology not in ("smooth", "cluster"):
-        raise ValueError(f"{experiment} experiment supports only topologies: smooth, cluster")
+    if experiment == "intelligence" and topology not in ("smooth", "rugged", "cluster"):
+        raise ValueError(
+            "intelligence experiment supports only topologies: smooth, rugged, cluster"
+        )
+    if experiment == "bb" and topology not in ("smooth", "cluster"):
+        raise ValueError("bb experiment supports only topologies: smooth, cluster")
 
     # Build topology and override vacuum params per experiment
     base_vacua, T = _build_topology(topology)
@@ -239,7 +243,9 @@ def run_experiment(
     elif experiment == "intelligence":
         vacua = override_vacua_params(
             base_vacua,
-            alpha=[1.0, 2.0, 5.0],
+            # Vacuum 1 is the "intelligence-bearing" vacuum and gets an α > 1 boost.
+            # Vacuum 2 is long-lived but non-intelligent, so α_2 stays at 1.
+            alpha=[1.0, 5.0, 1.0],
             o_bb=[0.0, 0.0, 0.0],
             t_bb=[float(np.inf), float(np.inf), float(np.inf)],
         )
