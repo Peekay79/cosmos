@@ -199,6 +199,79 @@ def run_experiment(
     if max_events <= 0:
         raise ValueError(f"--max-events must be > 0; got {max_events}")
 
+    if experiment == "cluster_suite":
+        # Meta-experiment: run three cluster configs, then print cluster rows from summary_statistics.csv
+        combos = [
+            ("baseline", "cluster", "concentrated"),
+            ("baseline", "cluster", "uniform"),
+            ("intelligence", "cluster", "uniform"),
+        ]
+
+        print("Running cluster_suite experiment:")
+        for exp_name, topo, init in combos:
+            print(f"  → {exp_name} / {topo} / {init}")
+            # Recurse into run_experiment for each real experiment type.
+            # Use the same seed, tmax, and max_events as provided at the top level.
+            run_experiment(
+                exp_name,
+                topo,
+                init,
+                seed,
+                tmax,
+                max_events,
+            )
+
+        # After all three cluster runs are done, read summary_statistics.csv and
+        # echo just the cluster rows to stdout in a readable way.
+        import csv
+        from pathlib import Path
+
+        def _parse_float(value: object, default: float = 0.0) -> float:
+            if value is None:
+                return default
+            s = str(value).strip()
+            if s == "":
+                return default
+            try:
+                return float(s)
+            except ValueError:
+                return default
+
+        summary_path = Path("results") / "summary_statistics.csv"
+        if not summary_path.exists():
+            print("No summary_statistics.csv found in results/, nothing to summarize.")
+            return
+
+        print("\n=== Cluster topology summary (from summary_statistics.csv) ===")
+        with summary_path.open("r", newline="") as f:
+            reader = csv.DictReader(f)
+            # Print a simple header
+            print(
+                f"{'experiment':<12} {'topology':<8} {'init':<12} "
+                f"{'final_time':>12} {'patches':>10} "
+                f"{'W_0':>10} {'W_1':>10} {'W_2':>10} {'BB_frac':>10}"
+            )
+            for row in reader:
+                if row.get("topology") == "cluster":
+                    final_time = _parse_float(row.get("final_time"), default=0.0)
+                    patches = int(round(_parse_float(row.get("final_total_patches"), default=0.0)))
+                    W0 = _parse_float(row.get("final_W_0"), default=0.0)
+                    W1 = _parse_float(row.get("final_W_1"), default=0.0)
+                    W2 = _parse_float(row.get("final_W_2"), default=0.0)
+                    BB = _parse_float(row.get("final_BB_fraction"), default=float("nan"))
+                    print(
+                        f"{row.get('experiment',''): <12} "
+                        f"{row.get('topology',''): <8} "
+                        f"{row.get('init',''): <12} "
+                        f"{final_time:12.4f} "
+                        f"{patches:10d} "
+                        f"{W0:10.6f} "
+                        f"{W1:10.6f} "
+                        f"{W2:10.6f} "
+                        f"{BB:10.6f}"
+                    )
+        return
+
     # Shared defaults
     if experiment in ("baseline", "intelligence"):
         N_max = 100_000
@@ -220,8 +293,10 @@ def run_experiment(
         raise ValueError(f"Unknown init_mode={init_mode}")
 
     # Validate supported topology per experiment
-    if experiment == "baseline" and topology not in ("smooth", "rugged"):
-        raise ValueError("baseline experiment supports only topologies: smooth, rugged")
+    if experiment == "baseline" and topology not in ("smooth", "rugged", "cluster"):
+        raise ValueError(
+            "baseline experiment supports only topologies: smooth, rugged, cluster"
+        )
     if experiment == "intelligence" and topology not in ("smooth", "rugged", "cluster"):
         raise ValueError(
             "intelligence experiment supports only topologies: smooth, rugged, cluster"
@@ -399,7 +474,7 @@ def main() -> None:
     parser.add_argument(
         "--experiment",
         required=True,
-        choices=["baseline", "intelligence", "bb"],
+        choices=["baseline", "intelligence", "bb", "cluster_suite"],
         help="Which experiment to run",
     )
 
