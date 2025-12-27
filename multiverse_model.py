@@ -22,7 +22,7 @@ import heapq
 import numpy as np
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class VacuumSpec:
     """
     Vacuum specification.
