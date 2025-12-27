@@ -1,0 +1,2 @@
+experiment,topology,init,final_time,final_total_patches,final_W_0,final_W_1,final_W_2,final_BB_fraction
+baseline,rugged,uniform,20.005507194109107,976,0.01715206006929809,0.29718969083107205,0.6856582490996345,

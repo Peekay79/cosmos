@@ -14,6 +14,7 @@ Goals:
 import argparse
 import concurrent.futures as cf
 import dataclasses
+import hashlib
 import json
 import logging
 import os
@@ -25,7 +26,7 @@ import time
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Deque, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Deque, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -128,6 +129,29 @@ class Progress:
 
 def _ensure_dir(p: Path) -> None:
     p.mkdir(parents=True, exist_ok=True)
+
+
+def _atomic_replace(src_tmp: Path, dst: Path) -> None:
+    """
+    Atomic-ish replace (same filesystem).
+    Write to src_tmp first, then replace into dst.
+    """
+    os.replace(str(src_tmp), str(dst))
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    _ensure_dir(path.parent)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(content, encoding="utf-8")
+    _atomic_replace(tmp, path)
+
+
+def _atomic_write_json(path: Path, obj: Dict[str, Any]) -> None:
+    _atomic_write_text(path, json.dumps(obj, indent=2, sort_keys=True) + "\n")
+
+
+def _plan_hash(plan_path: Path) -> str:
+    return hashlib.sha256(plan_path.read_bytes()).hexdigest()
 
 
 def _setup_logger(outdir: Path) -> logging.Logger:
@@ -324,10 +348,136 @@ def _rawdir_for_run(outdir: Path, run: RunSpec) -> Path:
 
 
 def _completion_marker(outdir: Path, run: RunSpec) -> Path:
-    # Completion defined as the presence of results.csv for seeded runs.
-    if run.seed is None:
-        return _rawdir_for_run(outdir, run) / "DONE"
+    # Completion is always based on a valid raw results.csv (seeded or single).
     return _rawdir_for_run(outdir, run) / "results.csv"
+
+
+def _state_path(outdir: Path) -> Path:
+    return outdir / "state.json"
+
+
+def _run_key(job_name: str, seed: Optional[int]) -> str:
+    return f"{job_name}|seed={seed if seed is not None else 'single'}"
+
+
+def _load_state(outdir: Path) -> Optional[Dict[str, Any]]:
+    p = _state_path(outdir)
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _init_state(
+    *,
+    outdir: Path,
+    plan_path: Path,
+    plan_hash: str,
+    runs: Sequence[RunSpec],
+) -> Dict[str, Any]:
+    now = utc_now_iso()
+    st: Dict[str, Any] = {
+        "schema_version": 1,
+        "created_at": now,
+        "updated_at": now,
+        "plan_path": str(plan_path),
+        "plan_hash": plan_hash,
+        "runs": {},
+    }
+    runs_map: Dict[str, Any] = {}
+    for r in runs:
+        key = _run_key(r.job.job_name, r.seed)
+        runs_map[key] = {
+            "job_name": r.job.job_name,
+            "experiment": r.job.experiment,
+            "topology": r.job.topology,
+            "init": r.job.init,
+            "seed": r.seed,
+            "tmax": float(r.tmax),
+            "max_events": int(r.max_events),
+            "rawdir": str(_rawdir_for_run(outdir, r)),
+            "workdir": str(_workdir_for_run(outdir, r)),
+            "status": "pending",
+            "started_at": None,
+            "finished_at": None,
+            "runtime_seconds": None,
+            "error_message": "",
+            "attempts": 0,
+        }
+    st["runs"] = runs_map
+    return st
+
+
+def _update_state_run(
+    state: Dict[str, Any],
+    *,
+    job_name: str,
+    seed: Optional[int],
+    status: str,
+    started_at: Optional[str] = None,
+    finished_at: Optional[str] = None,
+    runtime_seconds: Optional[float] = None,
+    error_message: Optional[str] = None,
+) -> None:
+    key = _run_key(job_name, seed)
+    runs = state.setdefault("runs", {})
+    row = runs.get(key) or {"job_name": job_name, "seed": seed}
+    row["status"] = status
+    if started_at is not None:
+        row["started_at"] = started_at
+    if finished_at is not None:
+        row["finished_at"] = finished_at
+    if runtime_seconds is not None:
+        row["runtime_seconds"] = float(runtime_seconds)
+    if error_message is not None:
+        row["error_message"] = str(error_message)
+    if status == "running":
+        row["attempts"] = int(row.get("attempts") or 0) + 1
+    runs[key] = row
+    state["updated_at"] = utc_now_iso()
+
+
+def _save_state(outdir: Path, state: Dict[str, Any]) -> None:
+    _atomic_write_json(_state_path(outdir), state)
+
+
+def _validate_results_csv(path: Path, *, job_experiment: str) -> Tuple[bool, str]:
+    """
+    Robust completion check:
+    - exists, size > 0
+    - parseable as CSV
+    - expected columns
+    - >= 2 rows
+    """
+    if not path.exists():
+        return False, "missing results.csv"
+    try:
+        if path.stat().st_size <= 0:
+            return False, "results.csv size == 0"
+    except Exception as e:
+        return False, f"stat failed: {e!r}"
+    try:
+        df = pd.read_csv(path)
+    except Exception as e:
+        return False, f"csv parse failed: {e!r}"
+    if len(df) < 2:
+        return False, f"csv has <2 rows (n={len(df)})"
+
+    cols = set(str(c) for c in df.columns)
+    if job_experiment == "cluster_suite":
+        required = {"experiment", "topology", "init"}
+        if not required.issubset(cols):
+            return False, f"missing required columns for cluster_suite: {sorted(required - cols)}"
+        return True, "ok"
+
+    if "time" not in cols or "total_patches" not in cols:
+        missing = [c for c in ("time", "total_patches") if c not in cols]
+        return False, f"missing required columns: {missing}"
+    if not any(c.startswith("W_") for c in cols):
+        return False, "missing W_* columns"
+    return True, "ok"
 
 
 def _run_one_worker(
@@ -418,16 +568,37 @@ def _run_one_worker(
     copied_any = False
     if status == "ok":
         try:
+            def _copy_atomic(src: Path, dst: Path) -> None:
+                _ensure_dir(dst.parent)
+                tmp = dst.with_suffix(dst.suffix + ".tmp")
+                try:
+                    if tmp.exists():
+                        tmp.unlink()
+                except Exception:
+                    pass
+                shutil.copy2(src, tmp)
+                _atomic_replace(tmp, dst)
+
             if run.job.experiment == "cluster_suite" and run.seed is None:
                 # Copy all CSV artifacts from this invocation (results/ + cwd files).
-                # Mark completion with DONE file.
                 for p in sorted((wdir / "results").glob("*.csv")):
-                    shutil.copy2(p, rawdir / p.name)
+                    _copy_atomic(p, rawdir / p.name)
                     copied_any = True
                 for p in sorted(wdir.glob("*.csv")):
-                    shutil.copy2(p, rawdir / p.name)
+                    _copy_atomic(p, rawdir / p.name)
                     copied_any = True
-                (rawdir / "DONE").write_text("ok\n", encoding="utf-8")
+
+                # Provide canonical completion artifact: raw/.../results.csv
+                primary = wdir / "results" / "summary_statistics.csv"
+                if not primary.exists():
+                    alt = wdir / "summary_intelligence_vs_baseline.csv"
+                    primary = alt if alt.exists() else primary
+                if not primary.exists():
+                    status = "fail"
+                    err_msg = "cluster_suite produced no summary CSV to use as results.csv"
+                else:
+                    _copy_atomic(primary, rawdir / "results.csv")
+                    copied_any = True
             else:
                 expected = _expected_results_csv(run.job.experiment, run.job.topology, run.job.init)
                 expected_path = wdir / expected if expected else None
@@ -447,7 +618,7 @@ def _run_one_worker(
                     status = "fail"
                     err_msg = "No results CSV found after run."
                 else:
-                    shutil.copy2(src_csv, rawdir / "results.csv")
+                    _copy_atomic(src_csv, rawdir / "results.csv")
                     copied_any = True
         except Exception as e:
             status = "fail"
@@ -456,7 +627,10 @@ def _run_one_worker(
     # Always copy the run log for debugging
     try:
         if run_log_path.exists():
-            shutil.copy2(run_log_path, rawdir / "run.log")
+            _ensure_dir(rawdir)
+            tmp = (rawdir / "run.log").with_suffix(".log.tmp")
+            shutil.copy2(run_log_path, tmp)
+            _atomic_replace(tmp, rawdir / "run.log")
     except Exception:
         pass
 
@@ -504,7 +678,7 @@ def _extract_final_snapshot(df: pd.DataFrame) -> Dict[str, Any]:
         "final_W_0": float(W_map.get(0, 0.0)),
         "final_W_1": float(W_map.get(1, 0.0)),
         "final_W_2": float(W_map.get(2, 0.0)),
-        "extinct_flag": int(round(float(last["total_patches"]))) == 0,
+        "extinct_flag": int(int(round(float(last["total_patches"]))) == 0),
     }
 
 
@@ -570,7 +744,7 @@ def write_tables_and_figures(
     for idx, row in run_index.iterrows():
         if row.get("status") != "ok":
             continue
-        if row.get("seed") is None:
+        if pd.isna(row.get("seed")):
             continue
         rawdir = Path(str(row["rawdir"]))
         results_path = rawdir / "results.csv"
@@ -823,7 +997,18 @@ def write_report(
                 )
 
     failures = [r for r in run_rows if r.get("status") != "ok"]
-    avg_run = float(np.mean([float(r["runtime_seconds"]) for r in run_rows])) if len(run_rows) else float("nan")
+    runtimes = []
+    for r in run_rows:
+        v = r.get("runtime_seconds")
+        if v is None:
+            continue
+        try:
+            fv = float(v)
+        except Exception:
+            continue
+        if np.isfinite(fv) and fv > 0:
+            runtimes.append(fv)
+    avg_run = float(np.mean(np.array(runtimes, dtype=float))) if len(runtimes) else float("nan")
     all_required_present = "YES"
 
     tau_map = _tau_mapping_for_jobs(jobs)
@@ -833,6 +1018,7 @@ def write_report(
         tau_lines.append(f"- `{job_name}` -> long_index={m.get('long_index')} taus={m.get('taus')}")
 
     cmd = " ".join([shlex_quote(x) for x in sys.argv])  # exact command used
+    plan_hash = _plan_hash(plan_path)
 
     report = f"""# COSMOS paper pipeline report
 
@@ -845,6 +1031,7 @@ Command run:
 ## Plan summary
 
 - **plan**: `{plan_path}`
+- **plan_hash_sha256**: `{plan_hash}`
 - **seeds**: {int(plan['seeds'])} (seed values: 0..{int(plan['seeds'])-1})
 - **tmax**: {float(plan['tmax'])}
 - **max_events**: {int(plan['max_events'])}
@@ -912,6 +1099,7 @@ def print_dry_run(
     print("paper_pipeline.py --dry-run")
     print(f"plan: {plan_path}")
     print(f"outdir: {outdir}")
+    print(f"plan_hash_sha256: {_plan_hash(plan_path)}")
     print(f"seeds: {int(plan['seeds'])} (seed values: 0..{int(plan['seeds'])-1})")
     print(f"tmax: {float(plan['tmax'])}")
     print(f"max_events: {int(plan['max_events'])}")
@@ -930,6 +1118,8 @@ def main() -> None:
     parser.add_argument("--outdir", type=str, default="")
     parser.add_argument("--workers", type=int, default=0)
     parser.add_argument("--resume", action="store_true", default=False)
+    parser.add_argument("--skip-fails", action="store_true", default=False)
+    parser.add_argument("--allow-plan-change", action="store_true", default=False)
     parser.add_argument("--dry-run", action="store_true", default=False)
     args = parser.parse_args()
 
@@ -943,6 +1133,7 @@ def main() -> None:
 
     jobs = jobs_from_plan(plan)
     runs = run_matrix(plan)
+    plan_hash = _plan_hash(plan_path)
 
     if args.dry_run:
         print_dry_run(plan_path=plan_path, outdir=outdir, plan=plan, jobs=jobs, runs=runs)
@@ -957,6 +1148,7 @@ def main() -> None:
 
     logger = _setup_logger(outdir)
     logger.info("plan=%s", plan_path)
+    logger.info("plan_hash_sha256=%s", plan_hash)
     logger.info("outdir=%s", outdir)
     logger.info("workers=%d", workers)
     logger.info("total_runs=%d", len(runs))
@@ -970,32 +1162,128 @@ def main() -> None:
     # Save a copy of the plan used for this run (stable artifact)
     shutil.copy2(plan_path, outdir / "plan_used.yaml")
 
-    # Build list of pending runs (resume skips completed).
+    # State management (atomic state.json)
+    state = _load_state(outdir)
+    if state is None:
+        state = _init_state(outdir=outdir, plan_path=plan_path, plan_hash=plan_hash, runs=runs)
+        _save_state(outdir, state)
+        logger.info("initialized state.json")
+    else:
+        prev_hash = str(state.get("plan_hash", ""))
+        if prev_hash and prev_hash != plan_hash:
+            if not args.allow_plan_change:
+                raise SystemExit(
+                    "Plan file changed; refusing to resume to avoid mixing datasets.\n"
+                    f"previous plan_hash_sha256={prev_hash}\n"
+                    f"current  plan_hash_sha256={plan_hash}\n"
+                    "Pass --allow-plan-change to override (not recommended)."
+                )
+            logger.info(
+                "WARNING: plan hash changed but --allow-plan-change set (prev=%s current=%s)",
+                prev_hash,
+                plan_hash,
+            )
+            state["previous_plan_hash"] = prev_hash
+            state["plan_hash"] = plan_hash
+
+        # Ensure state has entries for every run in the current plan.
+        runs_map = state.setdefault("runs", {})
+        for r in runs:
+            k = _run_key(r.job.job_name, r.seed)
+            if k not in runs_map:
+                runs_map[k] = {
+                    "job_name": r.job.job_name,
+                    "experiment": r.job.experiment,
+                    "topology": r.job.topology,
+                    "init": r.job.init,
+                    "seed": r.seed,
+                    "tmax": float(r.tmax),
+                    "max_events": int(r.max_events),
+                    "rawdir": str(_rawdir_for_run(outdir, r)),
+                    "workdir": str(_workdir_for_run(outdir, r)),
+                    "status": "pending",
+                    "started_at": None,
+                    "finished_at": None,
+                    "runtime_seconds": None,
+                    "error_message": "",
+                    "attempts": 0,
+                }
+
+        _save_state(outdir, state)
+
+    # Build list of pending runs (resume skips completed; invalid outputs are re-run).
     pending: List[RunSpec] = []
-    skipped = 0
+    skipped_ok = 0
+    skipped_fail = 0
+    completed_ok = 0
     for run in runs:
-        marker = _completion_marker(outdir, run)
-        if args.resume and marker.exists():
-            skipped += 1
+        raw_results = _completion_marker(outdir, run)
+        ok_disk, reason = _validate_results_csv(raw_results, job_experiment=run.job.experiment)
+        key = _run_key(run.job.job_name, run.seed)
+        st_row = (state.get("runs") or {}).get(key, {})
+        st_status = str(st_row.get("status", "pending"))
+
+        if ok_disk:
+            completed_ok += 1
+            _update_state_run(state, job_name=run.job.job_name, seed=run.seed, status="ok")
+            if args.resume:
+                skipped_ok += 1
+                logger.info("SKIP ok: %s results.csv valid (%s)", run.run_label, reason)
             continue
+
+        # Disk says incomplete/invalid.
+        if args.resume:
+            if st_status == "fail" and args.skip_fails:
+                skipped_fail += 1
+                logger.info("SKIP fail (per --skip-fails): %s", run.run_label)
+                continue
+            if st_status == "ok":
+                logger.info("RERUN: %s state ok but results.csv invalid (%s)", run.run_label, reason)
+            elif st_status == "running":
+                logger.info("RERUN: %s was running at crash (disk: %s)", run.run_label, reason)
+            elif st_status == "fail":
+                logger.info("RERUN: %s previous fail (disk: %s)", run.run_label, reason)
+            else:
+                logger.info("RERUN: %s incomplete (%s)", run.run_label, reason)
         pending.append(run)
-    logger.info("resume=%s | pending=%d | skipped=%d", args.resume, len(pending), skipped)
+
+    _save_state(outdir, state)
+    logger.info(
+        "resume=%s | pending=%d | skipped_ok=%d | skipped_fail=%d | ok_on_disk=%d",
+        args.resume,
+        len(pending),
+        skipped_ok,
+        skipped_fail,
+        completed_ok,
+    )
 
     # Run all pending runs in parallel
     t_wall0 = time.time()
     progress = Progress(total=len(runs))
 
-    # If resuming, count skipped runs as completed for progress display
-    for _ in range(skipped):
-        progress.completed += 1
+    # Progress continuity on resume
+    progress.completed = int(completed_ok + skipped_fail)
+    progress.ok = int(completed_ok)
+    progress.fail = int(skipped_fail)
+    try:
+        # Seed ETA with historical runtimes if available
+        hist: List[float] = []
+        for rr in (state.get("runs") or {}).values():
+            if rr.get("status") == "ok" and rr.get("runtime_seconds") is not None:
+                hist.append(float(rr["runtime_seconds"]))
+        for v in hist[-progress._durations.maxlen :]:
+            if np.isfinite(v) and v > 0:
+                progress._durations.append(float(v))
+    except Exception:
+        pass
 
     bar = None
     if tqdm is not None:
         bar = tqdm(total=len(runs), unit="run", dynamic_ncols=True)
-        if skipped:
-            bar.update(skipped)
+        if progress.completed:
+            bar.update(progress.completed)
 
-    run_rows: List[Dict[str, Any]] = []
+    run_rows_new: List[Dict[str, Any]] = []
     failures = 0
 
     def _log_progress(snap: Dict[str, Any]) -> None:
@@ -1017,6 +1305,15 @@ def main() -> None:
                 "tmax": run.tmax,
                 "max_events": run.max_events,
             }
+            _update_state_run(
+                state,
+                job_name=run.job.job_name,
+                seed=run.seed,
+                status="running",
+                started_at=utc_now_iso(),
+                error_message="",
+            )
+            _save_state(outdir, state)
             fut = ex.submit(_run_one_worker, str(repo_root), str(outdir), rd)
             fut_to_run[fut] = run
 
@@ -1042,11 +1339,30 @@ def main() -> None:
                     "copied_any": False,
                 }
 
-            run_rows.append(row)
+            run_rows_new.append(row)
 
             ok = row.get("status") == "ok"
+            # Integrity check post-run (avoid counting half-written outputs as complete)
+            raw_results = Path(str(row.get("rawdir"))) / "results.csv"
+            ok_disk, reason = _validate_results_csv(raw_results, job_experiment=run.job.experiment)
+            if ok and not ok_disk:
+                ok = False
+                row["status"] = "fail"
+                row["error_message"] = f"results.csv failed integrity after run: {reason}"
+
             if not ok:
                 failures += 1
+
+            _update_state_run(
+                state,
+                job_name=run.job.job_name,
+                seed=run.seed,
+                status=("ok" if ok else "fail"),
+                finished_at=utc_now_iso(),
+                runtime_seconds=float(row.get("runtime_seconds") or 0.0),
+                error_message=str(row.get("error_message") or ""),
+            )
+            _save_state(outdir, state)
             snap = progress.update(ok=ok, duration_s=float(row.get("runtime_seconds") or 0.0))
 
             # Update progress bar/print ETA
@@ -1087,6 +1403,31 @@ def main() -> None:
 
     total_wall = time.time() - t_wall0
     logger.info("runs complete | total_wall=%s | failures=%d", fmt_seconds(total_wall), failures)
+
+    # Build a complete run index from state.json (includes skipped/resumed runs).
+    run_rows: List[Dict[str, Any]] = []
+    runs_map = state.get("runs") if isinstance(state, dict) else {}
+    for r in runs:
+        k = _run_key(r.job.job_name, r.seed)
+        rr = (runs_map or {}).get(k, {})
+        run_rows.append(
+            {
+                "timestamp": rr.get("started_at") or rr.get("finished_at") or "",
+                "job_name": r.job.job_name,
+                "experiment": r.job.experiment,
+                "topology": r.job.topology,
+                "init": r.job.init,
+                "seed": r.seed,
+                "tmax": float(r.tmax),
+                "max_events": int(r.max_events),
+                "runtime_seconds": rr.get("runtime_seconds"),
+                "status": rr.get("status", "pending"),
+                "error_message": rr.get("error_message", ""),
+                "rawdir": rr.get("rawdir", str(_rawdir_for_run(outdir, r))),
+                "workdir": rr.get("workdir", str(_workdir_for_run(outdir, r))),
+                "attempts": rr.get("attempts", 0),
+            }
+        )
 
     # Tables + figures
     write_tables_and_figures(outdir=outdir, run_rows=run_rows, plan=plan, jobs=jobs, logger=logger)

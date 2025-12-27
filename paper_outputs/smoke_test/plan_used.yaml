@@ -1,0 +1,37 @@
+## Smoke plan for testing resume quickly (not for paper).
+seeds: 2
+tmax: 20
+max_events: 2000
+enable_bb: false
+
+jobs:
+  - experiment: baseline
+    topology: smooth
+    init: uniform
+  - experiment: baseline
+    topology: smooth
+    init: concentrated
+  - experiment: intelligence
+    topology: smooth
+    init: uniform
+  - experiment: baseline
+    topology: rugged
+    init: uniform
+  - experiment: intelligence
+    topology: rugged
+    init: uniform
+  - experiment: baseline
+    topology: cluster
+    init: uniform
+  - experiment: baseline
+    topology: cluster
+    init: concentrated
+  - experiment: intelligence
+    topology: cluster
+    init: uniform
+  - experiment: cluster_suite
+    topology: cluster
+    init: uniform
+    mode: single
+    seed: 42
+

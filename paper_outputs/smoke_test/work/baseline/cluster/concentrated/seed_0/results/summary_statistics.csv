@@ -1,0 +1,2 @@
+experiment,topology,init,final_time,final_total_patches,final_W_0,final_W_1,final_W_2,final_BB_fraction
+baseline,cluster,concentrated,20.00259907091462,389,0.02405282444445118,0.7528700334505829,0.22307714210496457,
