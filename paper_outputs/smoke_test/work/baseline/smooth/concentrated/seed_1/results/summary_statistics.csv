@@ -1,0 +1,2 @@
+experiment,topology,init,final_time,final_total_patches,final_W_0,final_W_1,final_W_2,final_BB_fraction
+baseline,smooth,concentrated,20.001291224392215,488,0.014672570931857058,0.7848264011183494,0.2005010279497936,

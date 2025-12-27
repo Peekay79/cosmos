@@ -1,0 +1,86 @@
+2025-12-27 18:52:47,047 | INFO | paper_pipeline starting
+2025-12-27 18:52:47,047 | INFO | python=3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+2025-12-27 18:52:47,048 | INFO | platform=Linux-6.1.147-x86_64-with-glibc2.39
+2025-12-27 18:52:47,048 | INFO | plan=/workspace/paper_plan_smoke.yaml
+2025-12-27 18:52:47,048 | INFO | plan_hash_sha256=d313d35196df4f63d66249fc4ebd6bb3a67d7611734c5b036b3b77a0b7a1390a
+2025-12-27 18:52:47,048 | INFO | outdir=/workspace/paper_outputs/smoke_test
+2025-12-27 18:52:47,048 | INFO | workers=2
+2025-12-27 18:52:47,048 | INFO | total_runs=17
+2025-12-27 18:52:47,049 | INFO | initialized state.json
+2025-12-27 18:52:47,050 | INFO | resume=False | pending=17 | skipped_ok=0 | skipped_fail=0 | ok_on_disk=0
+2025-12-27 18:52:48,963 | INFO | completed 1/17 (ok=1 fail=0) rate=31.37 runs/min elapsed=00:02 eta=00:30
+2025-12-27 18:52:57,476 | INFO | paper_pipeline starting
+2025-12-27 18:52:57,476 | INFO | python=3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+2025-12-27 18:52:57,477 | INFO | platform=Linux-6.1.147-x86_64-with-glibc2.39
+2025-12-27 18:52:57,477 | INFO | plan=/workspace/paper_plan_smoke.yaml
+2025-12-27 18:52:57,477 | INFO | plan_hash_sha256=d313d35196df4f63d66249fc4ebd6bb3a67d7611734c5b036b3b77a0b7a1390a
+2025-12-27 18:52:57,477 | INFO | outdir=/workspace/paper_outputs/smoke_test
+2025-12-27 18:52:57,477 | INFO | workers=1
+2025-12-27 18:52:57,477 | INFO | total_runs=17
+2025-12-27 18:52:57,479 | INFO | SKIP ok: baseline/smooth/uniform seed 0 results.csv valid (ok)
+2025-12-27 18:52:57,480 | INFO | SKIP ok: baseline/smooth/uniform seed 1 results.csv valid (ok)
+2025-12-27 18:52:57,480 | INFO | RERUN: baseline/smooth/concentrated seed 0 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: baseline/smooth/concentrated seed 1 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: intelligence/smooth/uniform seed 0 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: intelligence/smooth/uniform seed 1 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: baseline/rugged/uniform seed 0 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: baseline/rugged/uniform seed 1 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: intelligence/rugged/uniform seed 0 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: intelligence/rugged/uniform seed 1 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: baseline/cluster/uniform seed 0 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: baseline/cluster/uniform seed 1 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: baseline/cluster/concentrated seed 0 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: baseline/cluster/concentrated seed 1 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: intelligence/cluster/uniform seed 0 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: intelligence/cluster/uniform seed 1 was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,480 | INFO | RERUN: cluster_suite/cluster/uniform single was running at crash (disk: missing results.csv)
+2025-12-27 18:52:57,481 | INFO | resume=True | pending=15 | skipped_ok=2 | skipped_fail=0 | ok_on_disk=2
+2025-12-27 18:52:58,418 | INFO | completed 3/17 (ok=3 fail=0) rate=192.25 runs/min elapsed=00:01 eta=00:23
+2025-12-27 18:53:03,725 | INFO | completed 8/17 (ok=8 fail=0) rate=76.88 runs/min elapsed=00:06 eta=00:12
+2025-12-27 18:53:08,997 | INFO | completed 13/17 (ok=13 fail=0) rate=67.73 runs/min elapsed=00:12 eta=00:05
+2025-12-27 18:53:14,127 | INFO | completed 17/17 (ok=17 fail=0) rate=61.28 runs/min elapsed=00:17 eta=00:00
+2025-12-27 18:53:14,130 | INFO | runs complete | total_wall=00:17 | failures=0
+2025-12-27 18:53:14,145 | INFO | wrote /workspace/paper_outputs/smoke_test/tables/run_index.csv
+2025-12-27 18:53:14,156 | INFO | wrote /workspace/paper_outputs/smoke_test/tables/job_summary.csv
+2025-12-27 18:53:14,870 | INFO | wrote figures to /workspace/paper_outputs/smoke_test/figures
+2025-12-27 18:53:14,873 | INFO | wrote /workspace/paper_outputs/smoke_test/REPORT.md
+2025-12-27 18:53:36,023 | INFO | paper_pipeline starting
+2025-12-27 18:53:36,024 | INFO | python=3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+2025-12-27 18:53:36,025 | INFO | platform=Linux-6.1.147-x86_64-with-glibc2.39
+2025-12-27 18:53:36,025 | INFO | plan=/workspace/paper_plan_smoke_changed.yaml
+2025-12-27 18:53:36,025 | INFO | plan_hash_sha256=a01fce4569eb24bc82c87c43b51df1831b932c59ec2af535231064011f19cf73
+2025-12-27 18:53:36,025 | INFO | outdir=/workspace/paper_outputs/smoke_test
+2025-12-27 18:53:36,025 | INFO | workers=1
+2025-12-27 18:53:36,025 | INFO | total_runs=17
+2025-12-27 18:53:45,904 | INFO | paper_pipeline starting
+2025-12-27 18:53:45,904 | INFO | python=3.12.3 (main, Nov  6 2025, 13:44:16) [GCC 13.3.0]
+2025-12-27 18:53:45,905 | INFO | platform=Linux-6.1.147-x86_64-with-glibc2.39
+2025-12-27 18:53:45,905 | INFO | plan=/workspace/paper_plan_smoke.yaml
+2025-12-27 18:53:45,905 | INFO | plan_hash_sha256=d313d35196df4f63d66249fc4ebd6bb3a67d7611734c5b036b3b77a0b7a1390a
+2025-12-27 18:53:45,905 | INFO | outdir=/workspace/paper_outputs/smoke_test
+2025-12-27 18:53:45,905 | INFO | workers=1
+2025-12-27 18:53:45,905 | INFO | total_runs=17
+2025-12-27 18:53:45,905 | INFO | RERUN: baseline/smooth/uniform seed 0 state ok but results.csv invalid (results.csv size == 0)
+2025-12-27 18:53:45,907 | INFO | SKIP ok: baseline/smooth/uniform seed 1 results.csv valid (ok)
+2025-12-27 18:53:45,908 | INFO | SKIP ok: baseline/smooth/concentrated seed 0 results.csv valid (ok)
+2025-12-27 18:53:45,908 | INFO | SKIP ok: baseline/smooth/concentrated seed 1 results.csv valid (ok)
+2025-12-27 18:53:45,909 | INFO | SKIP ok: intelligence/smooth/uniform seed 0 results.csv valid (ok)
+2025-12-27 18:53:45,909 | INFO | SKIP ok: intelligence/smooth/uniform seed 1 results.csv valid (ok)
+2025-12-27 18:53:45,910 | INFO | SKIP ok: baseline/rugged/uniform seed 0 results.csv valid (ok)
+2025-12-27 18:53:45,911 | INFO | SKIP ok: baseline/rugged/uniform seed 1 results.csv valid (ok)
+2025-12-27 18:53:45,911 | INFO | SKIP ok: intelligence/rugged/uniform seed 0 results.csv valid (ok)
+2025-12-27 18:53:45,912 | INFO | SKIP ok: intelligence/rugged/uniform seed 1 results.csv valid (ok)
+2025-12-27 18:53:45,913 | INFO | SKIP ok: baseline/cluster/uniform seed 0 results.csv valid (ok)
+2025-12-27 18:53:45,913 | INFO | SKIP ok: baseline/cluster/uniform seed 1 results.csv valid (ok)
+2025-12-27 18:53:45,914 | INFO | SKIP ok: baseline/cluster/concentrated seed 0 results.csv valid (ok)
+2025-12-27 18:53:45,915 | INFO | SKIP ok: baseline/cluster/concentrated seed 1 results.csv valid (ok)
+2025-12-27 18:53:45,915 | INFO | SKIP ok: intelligence/cluster/uniform seed 0 results.csv valid (ok)
+2025-12-27 18:53:45,916 | INFO | SKIP ok: intelligence/cluster/uniform seed 1 results.csv valid (ok)
+2025-12-27 18:53:45,916 | INFO | SKIP ok: cluster_suite/cluster/uniform single results.csv valid (ok)
+2025-12-27 18:53:45,917 | INFO | resume=True | pending=1 | skipped_ok=16 | skipped_fail=0 | ok_on_disk=16
+2025-12-27 18:53:46,932 | INFO | completed 17/17 (ok=17 fail=0) rate=1005.74 runs/min elapsed=00:01 eta=00:00
+2025-12-27 18:53:46,934 | INFO | runs complete | total_wall=00:01 | failures=0
+2025-12-27 18:53:46,948 | INFO | wrote /workspace/paper_outputs/smoke_test/tables/run_index.csv
+2025-12-27 18:53:46,959 | INFO | wrote /workspace/paper_outputs/smoke_test/tables/job_summary.csv
+2025-12-27 18:53:47,661 | INFO | wrote figures to /workspace/paper_outputs/smoke_test/figures
+2025-12-27 18:53:47,664 | INFO | wrote /workspace/paper_outputs/smoke_test/REPORT.md
