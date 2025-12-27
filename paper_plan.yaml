@@ -1,0 +1,54 @@
+## COSMOS paper pipeline plan (v1)
+##
+## This plan is intentionally explicit and stable for reproducibility.
+## The pipeline performs strict validation that all REQUIRED jobs are present.
+##
+## Notes:
+## - "seeds" is the number of seeds. Seed values used are 0..(seeds-1).
+## - "cluster_suite" (if present) is run as a single invocation (not a seeded loop).
+##
+seeds: 200
+tmax: 200
+max_events: 200000
+enable_bb: false
+
+jobs:
+  # REQUIRED JOBS (hard requirement)
+  # A) Smooth topology
+  - experiment: baseline
+    topology: smooth
+    init: uniform
+  - experiment: baseline
+    topology: smooth
+    init: concentrated
+  - experiment: intelligence
+    topology: smooth
+    init: uniform
+
+  # B) Rugged topology
+  - experiment: baseline
+    topology: rugged
+    init: uniform
+  - experiment: intelligence
+    topology: rugged
+    init: uniform
+
+  # C) Cluster topology
+  - experiment: baseline
+    topology: cluster
+    init: uniform
+  - experiment: baseline
+    topology: cluster
+    init: concentrated
+  - experiment: intelligence
+    topology: cluster
+    init: uniform
+
+  # OPTIONAL JOB (include only if supported by experiments.py)
+  # experiments.py in this repo supports cluster_suite, so include it as a single run.
+  - experiment: cluster_suite
+    topology: cluster
+    init: uniform
+    mode: single
+    seed: 42
+
