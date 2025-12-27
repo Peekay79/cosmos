@@ -13,6 +13,7 @@ Outputs:
 
 import argparse
 import os
+import sys
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -28,6 +29,9 @@ from multiverse_model import (
     override_vacua_params,
 )
 from plotting import plot_W, plot_population, plot_bb_fraction
+
+if sys.version_info < (3, 9):
+    raise RuntimeError("Python 3.9+ is required to run this simulation")
 
 
 def _ensure_dir(path: str) -> None:

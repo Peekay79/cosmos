@@ -74,7 +74,9 @@ def validate_transition_matrix(T: np.ndarray) -> None:
         raise ValueError(f"Transition matrix has rows summing to > 1.0: {bad_rows}")
 
 
-@dataclass(slots=True)
+# NOTE: slots removed for Python 3.9 compatibility
+# (original version used slots=True)
+@dataclass()
 class Patch:
     """
     A single "patch" (worldline) in a given vacuum.
@@ -139,7 +141,9 @@ def total_observers(vac: VacuumSpec, age: float) -> Tuple[float, float, float]:
     return float(o_s + o_b), float(o_s), float(o_b)
 
 
-@dataclass(frozen=True, slots=True)
+# NOTE: slots removed for Python 3.9 compatibility
+# (original version used slots=True)
+@dataclass(frozen=True)
 class SimulationConfig:
     """
     Configuration for a simulation run.
@@ -158,7 +162,9 @@ class SimulationConfig:
     seed: int
 
 
-@dataclass(slots=True)
+# NOTE: slots removed for Python 3.9 compatibility
+# (original version used slots=True)
+@dataclass()
 class SimulationResult:
     """
     Recorded simulation outputs.
